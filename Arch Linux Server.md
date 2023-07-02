@@ -59,6 +59,29 @@ sudo pacman -S php php-fpm php-gd
 sudo systemctl enable --now php-fpm
 ```
 
+### Edit php.ini /etc/php7/php.ini
+*uncomment*
+```
+extension=curl
+extension=gd
+extension=soap
+extension=iconv
+extension=mysqli
+zend_extension=opcache
+extension=zip
+extension=exif
+extension=pdo_mysql
+```
+*uncomment*
+```
+[OPCache]
+opcache.enable=1
+opcache.enable_cli=0
+opcache.memory_consumption=128
+opcache.interned_strings_buffer=8
+opcache.max_accelerated_files=40000
+```
+
 ### Change SSH port
 ```
 sudo nvim /etc/ssh/sshd_config
