@@ -307,16 +307,16 @@ sub Test
    chmod 0777, $upload_dir;
    chmod 0777, $img_dir;
 
-   push @tests, -d $temp_dir ? 'temp dir exist: OK' : mkdir($temp_dir) ? 'temp dir exist: OK' : 'temp dir exist: ERROR';
-   push @tests, mkdir("$temp_dir/test") ? 'temp dir mkdir: OK' : 'temp dir mkdir: ERROR';
+   push @tests, -d $temp_dir ? 'temp dir exist: OK' : mkdir($temp_dir) and chmod(0777, $temp_dir) ? 'temp dir exist: OK' : 'temp dir exist: ERROR';
+   push @tests, mkdir("$temp_dir/test") and chmod(0777,"$temp_dir/test")  ? 'temp dir mkdir: OK' : 'temp dir mkdir: ERROR';
    push @tests, rmdir("$temp_dir/test") ? 'temp dir rmdir: OK' : 'temp dir rmdir: ERROR';
 
-   push @tests, -d $upload_dir ? 'upload dir exist: OK' : mkdir($upload_dir) ? 'upload dir exist: OK' : 'upload dir exist: ERROR';
-   push @tests, mkdir("$upload_dir/test") ? 'upload dir mkdir: OK' : 'upload dir mkdir: ERROR';
-   push @tests, rmdir("$upload_dir/test") ? 'upload dir rmdir: OK' : 'upload dir rmdir: ERROR';
+   push @tests, -d $upload_dir ? 'upload dir exist: OK' : mkdir($upload_dir) and chmod(0777,$upload_dir)  ? 'upload dir exist: OK' : 'upload dir exist: ERROR';
+   push @tests, mkdir("$upload_dir/test") and chmod(0777,"$upload_dir/test") ? 'upload dir mkdir: OK' : 'upload dir mkdir: ERROR';
+   push @tests, rmdir("$upload_dir/test")  ? 'upload dir rmdir: OK' : 'upload dir rmdir: ERROR';
 
-   push @tests, -d $img_dir ? 'img dir exist: OK' : mkdir($img_dir) ? 'img dir exist: OK' : 'img dir exist: ERROR';
-   push @tests, mkdir("$img_dir/test") ? 'img dir mkdir: OK' : 'img dir mkdir: ERROR';
+   push @tests, -d $img_dir ? 'img dir exist: OK' : mkdir($img_dir) and chmod(0777,$upload_dir) ? 'img dir exist: OK' : 'img dir exist: ERROR';
+   push @tests, mkdir("$img_dir/test") and chmod(0777,"$img_dir/test") ? 'img dir mkdir: OK' : 'img dir mkdir: ERROR';
    push @tests, rmdir("$img_dir/test") ? 'img dir rmdir: OK' : 'img dir rmdir: ERROR';
 
    Send( "OK:".join('|',@tests) );
