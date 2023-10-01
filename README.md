@@ -25,6 +25,32 @@ my $video_str = "-c:v libx264 -preset $settings->{vid_preset} $fps_limit $enc_mo
 my $audio_file = "-acodec libmp3lame -ac 2 -ab 96k -map a -map_metadata 0:s:0";
 ```
 
+add after my $input_srt
+```
+   my $dx = sprintf("%05d",$real_id/$c->{files_per_folder});
+   my $idir = "$c->{htdocs_dir}/i/$disk_id/$dx";
+   mkdir($idir,0777) unless -d $idir;
+
+   my $filter_w1 = "aformat=channel_layouts=mono,compand=gain=-6,showwavespic=s=800x40:colors=#5593e4"; 
+   my $filter_w2 = "aformat=channel_layouts=mono,compand=gain=-6,showwavespic=s=800x40:colors=#8c8c8c";
+   my $filter_sc = "showspectrumpic=s=640x512:scale=log:color=rainbow"; 
+   my $output_w1 = "$idir/$code\_w1.png";
+   my $output_w2 = "$idir/$code\_w2.png";
+   my $output_w3 = "$idir/$code\_sp.png";
+   my $wave1 = "$c->{ffmpeg} -i $file -filter_complex \"$filter_w1\" -update true $output_w1";
+   my $wave2 = "$c->{ffmpeg} -i $file -filter_complex \"$filter_w2\" -update true $output_w2";
+   my $spect = "$c->{ffmpeg} -i $file -lavfi \"$filter_sc\" -update true $output_w3";
+
+   system($wave1);
+   print"Wave1: $wave1\n";
+
+   system($wave2);
+   print"Wave2: $wave1\n"; 
+
+   system($spect);
+   print"Spectogram: $spect\n";
+```
+
 ### fs.pm
 
 ```
