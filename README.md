@@ -51,6 +51,11 @@ add after my $input_srt
    print"Spectogram: $spect\n";
 ```
 
+change unless($last=~/video:\d+/is) to:
+```
+unless($last=~/audio:\d+/is)
+```
+
 ### fs.pm
 
 ```
