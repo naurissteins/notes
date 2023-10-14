@@ -1,0 +1,3 @@
+sudo systemd-resolve --status
+sudo systemctl restart systemd-resolved
+sudo nvim /etc/systemd/resolved.conf
