@@ -62,7 +62,7 @@ sub ProcessFile
       return $file;
    }
 
-   my $notvideo=1 if $file->{file_name_orig}!~/\.($c->{video_extensions})$/i;
+   my $notvideo=1 if $file->{file_name_orig}!~/\.($c->{video_extensions}|$c->{audio_extensions})$/i;
    if($notvideo && !$c->{allow_non_video_uploads})
    {
       $file->{file_status}="Not video file ($file->{file_name_orig})";
@@ -214,6 +214,7 @@ sub SaveFile
                $log->log($error);
                xmessage($error);
            };
+
    my $mode = 0666;
    chmod $mode, $file_dst;
    unlink($file->{file_tmp}) if -e $file->{file_tmp};
@@ -229,27 +230,166 @@ sub SaveFile
    $c->{thumb_position}=5 unless $c->{thumb_position}=~/^[\d\.]+$/;
    $c->{thumb_position}=3 if $c->{thumb_position}<3;
 
-   if($c->{custom_snapshot_upload} && $file->{snapshot_file_tmp})
+   if($c->{video_extensions} && $file->{file_name}=~/\.($c->{video_extensions})$/i) 
    {
-      `convert -resize 2000x2000\> -strip $file->{snapshot_file_tmp} $idir/$file->{file_code}.jpg` if -f $file->{snapshot_file_tmp} && -s $file->{snapshot_file_tmp} < $c->{custom_snapshot_upload}*1073741824;
-   }
-   else
-   {
-      my $thw = 720 if $f->{ID_VIDEO_WIDTH}>720;
-      makeSnap($file_dst, "$idir/$file->{file_code}.jpg", $c->{thumb_position}, $thw, 0, 'fast');
-   }
-   
-   `convert $idir/$file->{file_code}.jpg -resize $c->{thumb_width}x$c->{thumb_height}^ -gravity center -extent $c->{thumb_width}x$c->{thumb_height} -quality $c->{thumb_quality} $idir/$file->{file_code}_t.jpg`;
-   unless(-f "$idir/$file->{file_code}_t.jpg")
-   {
-       makeSnap($file_dst, "$idir/$file->{file_code}_t.jpg", $c->{thumb_position}, $c->{thumb_width}, $c->{thumb_height}, 'fast');
-   }
-   
-   copy("$c->{htdocs_dir}/i/default.jpg","$idir/$file->{file_code}.jpg")   unless -e "$idir/$file->{file_code}.jpg";
-   copy("$c->{htdocs_dir}/i/default.jpg","$idir/$file->{file_code}_t.jpg") unless -e "$idir/$file->{file_code}_t.jpg";
+      if($c->{custom_snapshot_upload} && $file->{snapshot_file_tmp})
+         {
+            `convert -resize 2000x2000\> -strip $file->{snapshot_file_tmp} $idir/$file->{file_code}.jpg` if -f $file->{snapshot_file_tmp} && -s $file->{snapshot_file_tmp} < $c->{custom_snapshot_upload}*1073741824;
+         }
+         else
+         {
+            my $thw = 1280 if $f->{ID_VIDEO_WIDTH}>1280;
+            makeSnap($file_dst, "$idir/$file->{file_code}.jpg", $c->{thumb_position}, $thw, 0, 'fast');
+         }
+         
+         `convert $idir/$file->{file_code}.jpg -resize 720x405^ -gravity center -extent 720x405 -quality $c->{thumb_quality} $idir/$file->{file_code}_t.jpg`;
+         unless(-f "$idir/$file->{file_code}_t.jpg")
+         {
+            makeSnap($file_dst, "$idir/$file->{file_code}_t.jpg", $c->{thumb_position}, 720, 405, 'fast');
+         }
+         
+         copy("$c->{htdocs_dir}/i/default.jpg","$idir/$file->{file_code}.jpg")   unless -e "$idir/$file->{file_code}.jpg";
+         copy("$c->{htdocs_dir}/i/default.jpg","$idir/$file->{file_code}_t.jpg") unless -e "$idir/$file->{file_code}_t.jpg";
 
-   createScreenlist( $file_dst, $file, $f, $idir, $extra) if $extra->{screenlist};
+         createScreenlist( $file_dst, $file, $f, $idir, $extra) if $extra->{screenlist}; 
+
+         `convert $file_dst -resize 720x405^ -gravity center -extent 720x405 -quality $c->{thumb_quality} $idir/$file->{file_code}_t.jpg`;
+         if($f->{ID_VIDEO_WIDTH}>1280) {
+         `convert -resize 1280x1280\> -strip $file_dst $idir/$file->{file_code}_t.jpg`;
+         }
+
+   } elsif($c->{image_extensions} && $file->{file_name}=~/\.($c->{image_extensions})$/i) {
+      my ($ext) = $file->{file_name} =~ /\.([^.]+)$/;
+      imageThumb($file_dst, "$idir/$file->{file_code}_t.$ext");
+
+   } elsif($c->{audio_extensions} && $file->{file_name}=~/\.($c->{audio_extensions})$/i) {
+      
+      audioCover($file_dst, "$idir/$file->{file_code}_t.jpg");
+   }
+
+
+
 }
+
+
+sub imageThumb {
+    my ($file_path, $final_path, $instant) = @_;
+    unlink($final_path);
+
+    # Get the dimensions of the image
+    my $ffprobe = $c->{ffprobe} // 'ffprobe'; # Assuming ffprobe is in the same path as ffmpeg
+    my $dims = `$ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$file_path"`;
+    my ($width, $height) = split 'x', $dims;
+
+    my $size = '';
+    # Apply scale only if width is greater than 500
+    if ($width > 1280) {
+        $size = "-vf scale=1280:-1";
+    }
+
+    my $timeout = 'timeout 10s ' unless $c->{no_ffmpeg_timeout};
+    my $str = qq[$timeout$c->{ffmpeg} -i "$file_path" $size -q:v 3 $final_path];
+    return $str if $instant;
+    my $x = `$str >/dev/null 2>/dev/null`;
+    return $x;
+}
+
+sub audioCover {
+    my ($file_path, $final_path, $instant) = @_;
+    unlink($final_path);
+
+    # Get the dimensions of the image
+    my $ffprobe = $c->{ffprobe} // 'ffprobe'; # Assuming ffprobe is in the same path as ffmpeg
+    my $dims = `$ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$file_path"`;
+    my ($width, $height) = split 'x', $dims;
+
+    my $size = '';
+    # Apply scale only if width is greater than 500
+    if ($width > 500) {
+        $size = "-vf scale=500:-1";
+    }
+
+    my $timeout = 'timeout 10s ' unless $c->{no_ffmpeg_timeout};
+    my $str = qq[$timeout$c->{ffmpeg} -i "$file_path" $size -q:v 3 $final_path];
+    return $str if $instant;
+    my $x = `$str >/dev/null 2>/dev/null`;
+    return $x;
+}
+
+# sub Wave1 {
+#     my ($file_path, $final_path, $instant) = @_;
+#     unlink($final_path);
+
+#     my $filter_w1 = "aformat=channel_layouts=mono,compand=gain=-6,showwavespic=s=800x40:colors=#5593e4";     
+
+#     my $timeout = 'timeout 10s ' unless $c->{no_ffmpeg_timeout};
+#     my $str = qq[$timeout$c->{ffmpeg} -i "$file_path" -filter_complex \"$filter_w1\" -update true $final_path];
+#     return $str if $instant;
+#     my $x = `$str >/dev/null 2>/dev/null`;
+#     return $x;
+# }
+
+sub Wave {
+   my ($file) = @_;
+    
+	$file->{file_real}||=$file->{file_code};
+	$file->{file_real_id}||=$file->{file_id};
+	$file->{disk_id}||='01';
+
+   my $dx = sprintf("%05d",$file->{file_real_id}/$c->{files_per_folder});
+   my $idir = "$c->{htdocs_dir}/i/$file->{disk_id}/$dx";
+	mkdir($idir,0777) unless -d $idir;
+
+   my $cover = "$idir/$file->{file_real}_t.jpg";
+   my $sp = "$idir/$file->{file_real}_sp.png";
+   my $w1 = "$idir/$file->{file_real}_w1.png";
+   my $w2 = "$idir/$file->{file_real}_w2.png";
+   return 0 if $file->{file_path} && -f $w2;
+
+	my $file_path = "$c->{cgi_dir}/uploads/$file->{disk_id}/$dx/$file->{file_real}\_o";
+	return "ERROR:No source file /$file->{disk_id}/$dx/$file->{file_real}" unless -f $file_path;   
+
+   my $filter_w1 = "aformat=channel_layouts=mono,compand=gain=-6,showwavespic=s=800x40:colors=#5593e4";  
+   my $filter_w2 = "aformat=channel_layouts=mono,compand=gain=-6,showwavespic=s=800x40:colors=#8c8c8c";
+   my $filter_sp = "showspectrumpic=s=640x512:scale=log:color=rainbow";
+
+   my $timeout = 'timeout 10s ' unless $c->{no_ffmpeg_timeout};
+
+
+   # Get the dimensions of the image
+   my $ffprobe = $c->{ffprobe} // 'ffprobe'; # Assuming ffprobe is in the same path as ffmpeg
+   my $dims = `$ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$file_path"`;
+   my ($width, $height) = split 'x', $dims;
+
+   my $size = '';
+    # Apply scale only if width is greater than 500
+   if ($width > 500) {
+        $size = "-vf scale=500:-1";
+   }   
+
+   # Generate Artwork
+   my $str_cover = qq[$timeout$c->{ffmpeg} -i "$file_path" $size -q:v 3 -update true $cover];
+   `$str_cover >/dev/null 2>/dev/null`;
+   print"Artwork Done\n";      
+
+   # Generate Spectogram
+   my $str_sp = qq[$timeout$c->{ffmpeg} -i "$file_path" -lavfi "$filter_sp" -update true $sp];
+   `$str_sp >/dev/null 2>/dev/null`;
+   print"Spectogram Done\n";   
+
+   # Generate Waveform 1
+   my $str_w1 = qq[$timeout$c->{ffmpeg} -i "$file_path" -filter_complex "$filter_w1" -update true $w1];
+   `$str_w1 >/dev/null 2>/dev/null`;
+   print"Waveform 1 Done\n";
+
+   # Generate Waveform 2
+   my $str_w2 = qq[$timeout$c->{ffmpeg} -i "$file_path" -filter_complex "$filter_w2" -update true $w2];
+   my $x = `$str_w2 >/dev/null 2>/dev/null`;
+   print"Waveform 2 Done\n";
+   return $x;
+
+}
+
 
 sub makeSnap
 {
@@ -354,7 +494,7 @@ sub createTimeslides
 	   my $ss = sprintf("%.1f",$i*$file->{file_length}/($frames+1));
 	   my $th = "$temp_dir/".sprintf("%03d",$i);
 	   my $thp = "$temp_dir/p".sprintf("%03d",$i);
-	   makeSnap( $file_path, "$th\_s.png", $ss, $c->{thumb_width}, $c->{thumb_height}, 'fast');
+	   makeSnap( $file_path, "$th\_s.png", $ss, 200, 112, 'fast');
 	}
 
 	`montage $temp_dir/*_s.png -tile $c->{m_z_cols}x -geometry +0+0 $slides_file`;
